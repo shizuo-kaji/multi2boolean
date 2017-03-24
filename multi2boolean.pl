@@ -2,8 +2,9 @@
 # @file multi2boolean.pl
 # @brief A perl script to convert multilevel networks to Boolean networks
 #        The algorithm is based on the paper
-#        "A circuit-preserving mapping from multilevel to Boolean dynamics on a grid graph"
-#        by A. Faure and S. Kaji
+#        "A circuit-preserving mapping from multilevel to Boolean dynamics" by A. Faure and S. Kaji
+#        and
+#		 "On the conversion of multivalued gene regulatory networks to Boolean dynamics" by E. Tonello
 # @par How to use: 
 #      1. Define your model in the "Truth Table" (tt) format.
 #         (GINSim can read and write tt files)
@@ -25,12 +26,17 @@
 
 use strict;
 use warnings;
+use Getopt::Long 'GetOptions';
 
 # print usage
-if(@ARGV != 1) {
-         print "Usage: $0 input_file > output_file \n";
+if(@ARGV < 1) {
+         print "Usage (Faure-Kaji): $0 input_file > output_file \n";
+         print "Usage (Tonello): $0 -t input_file > output_file \n";
 		 exit;
 }
+
+my $tonello = 0;
+GetOptions('t'  => \$tonello);
 
 # read the input file
 my $inputfile = shift;
@@ -49,8 +55,12 @@ foreach my $line (@input) {
 	}
 }
 for (my $i = 0; $i <= $#vars; $i++){
-	for (my $j = 1; $j <= $maxval[$i]; $j++){
-  		print "$vars[$i]".$j."\t";
+	if($maxval[$i]==1){
+  		print "$vars[$i]"."\t";		
+	}else{
+		for (my $j = 1; $j <= $maxval[$i]; $j++){
+			print "$vars[$i]".$j."\t";
+		}
 	}
 }
 print "\n";
@@ -67,26 +77,40 @@ foreach my $line (@input) {
 		my @L = choose($maxval[$i],$sv);
 		my (@newS, @newT);
 		for (my $j = 0; $j <= $#S; $j++){
+			# set source values 
+			foreach my $l (@L){
+				push @newS, $S[$j] . $l;
+			}
+			# set target values 
 			if($sv<$tv){
 				foreach my $l (@L){
-					push @newS, $S[$j] . $l; 
-					push @newT, $T[$j] . ("1" x $maxval[$i]); 
+					if($tonello){
+						push @newT, $T[$j] . ("1" x ($sv+1)) . ("0" x ($maxval[$i]-$sv-1));
+					}else{
+						push @newT, $T[$j] . ("1" x $maxval[$i]);
+					}
 				}
 			}elsif($sv == $tv){
 				foreach my $l(@L){
-					push @newS, $S[$j] . $l; 
-					push @newT, $T[$j] . $l; 
+					if($tonello){
+						push @newT, $T[$j] . ("1" x $sv) . ("0" x ($maxval[$i]-$sv));
+					}else{
+						push @newT, $T[$j] . $l; 
+					}
 				}
 			}elsif($sv > $tv){
 				foreach my $l(@L){
-					push @newS, $S[$j] . $l; 
-					push @newT, $T[$j] . ("0" x $maxval[$i]); 
+					if($tonello){
+						push @newT, $T[$j] . ("1" x ($sv-1)) . ("0" x ($maxval[$i]-$sv+1));
+					}else{
+						push @newT, $T[$j] . ("0" x $maxval[$i]); 
+					}
 				}
 			}
 		}
-#		print join("\n", @S);
 		@S = @newS;
 		@T = @newT;
+#		print join("\n", @T);
 	}
 	for (my $j = 0; $j <= $#S; $j++){
 		print  $S[$j] . "\t" . $T[$j] . "\n";
